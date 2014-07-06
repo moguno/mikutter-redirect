@@ -1,22 +1,41 @@
 #! coding: UTF-8
 
 Plugin.create(:mikutter_redirect) {
+  UserConfig[:redirect_timer] ||= 10
+  @messages = []
+  @last_redirect_slug = nil
 
-  module Redirector
-    class << self
-      @messages = []
+  module Looper
+    def self.start(timer_set, &proc)
+      proc.call
 
-      def looper(timer_set, &proc)
-        proc.call
-
-        Reserver.new(time_set.call) {
-          looper(timer_set, &proc)
-        }
-      end
-
-
+      Reserver.new(timer_set.call) {
+        start(timer_set, &proc)
+      }
     end
   end
+
+  def fetch_message!
+    message = @messages.find { |_| _ != @last_redirect_slug } ||
+              (@messages.length != 0)?@messages[0]:nil
+
+    if message
+      @messages.delete(message)
+    end
+
+    message
+  end
+
+  Looper.start(-> { UserConfig[:redirect_timer] }) {
+    message = fetch_message!
+
+    if message
+      Delayer.new {
+        message[:modified] = Time.now
+        timeline(:home_timeline) << message
+      }
+    end
+  }
 
   # タイムラインのスラッフからUserConfigのキーを得る
   def make_config_key(i_timeline)
@@ -52,7 +71,9 @@ Plugin.create(:mikutter_redirect) {
 
   
   EXCEPT_TABS = [
-    /^profile/
+    /^profile/,
+    /^home_timeline$/,
+    /^mentions$/,
   ]
 
   # リダイレクトON/OFF
@@ -60,7 +81,7 @@ Plugin.create(:mikutter_redirect) {
           name: _('redirect'),
           condition: lambda { |opt| 
             (opt.event != :contextmenu) &&
-            (!EXCEPT_TABS.any?{|_| opt.widget.slug.to_s =~ _})
+            (!EXCEPT_TABS.any?{ |_| opt.widget.slug.to_s =~ _ })
           },
           visible: true,
           icon: File.join(File.dirname(__FILE__), "redirect.png"),
@@ -80,13 +101,16 @@ Plugin.create(:mikutter_redirect) {
 
     if i_timeline
       set_config(i_timeline, { :on => opt[:value] })
+
+      if !opt[:value]
+        set_config(i_timeline, { :last_redirected => nil })
+      end
     end
   }
 
 
   # TLにメッセージが投入された
   on_gui_timeline_add_messages { |i_timeline, messages|
-begin
     Array(messages).each { |message|
       # 処理要件
       if [
@@ -104,15 +128,12 @@ begin
       ].all? { |a| a.call }
         set_config(i_timeline, { :last_redirected => (message[:modified] || message[:created]) })
 
-        message[:modified] = Time.now
         message[:redirected] = true
+        message[:born_in] = i_timeline.slug
 
-        timeline(:home_timeline) << message
+puts "add"
+        @messages << message
       end
     }
-rescue => e
-puts e
-puts e.backtrace
-end
   }
 }
