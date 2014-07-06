@@ -1,0 +1,11 @@
+---
+slug: :mikutter-redirect
+depends:
+  mikutter: 3.0.2
+  plugin:
+  - gui
+  - mikutter-toolbar-hardpoint
+version: 0.0.1
+author: moguno
+name: mikutter-redirect
+description: 任意のタブのメッセージをホームタイムラインにリダイレクトします。
