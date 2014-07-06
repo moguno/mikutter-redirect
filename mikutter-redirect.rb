@@ -16,7 +16,7 @@ Plugin.create(:mikutter_redirect) {
   end
 
   def fetch_message!
-    message = @messages.find { |_| _ != @last_redirect_slug } ||
+    message = @messages.find { |_| _[:born_in] != @last_redirect_slug } ||
               (@messages.length != 0)?@messages[0]:nil
 
     if message
@@ -31,8 +31,8 @@ Plugin.create(:mikutter_redirect) {
 
     if message
       Delayer.new {
-        message[:modified] = Time.now
         timeline(:home_timeline) << message
+        message[:modified] = Time.now
       }
     end
   }
@@ -131,7 +131,6 @@ Plugin.create(:mikutter_redirect) {
         message[:redirected] = true
         message[:born_in] = i_timeline.slug
 
-puts "add"
         @messages << message
       end
     }
